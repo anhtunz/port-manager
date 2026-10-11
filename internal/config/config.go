@@ -20,6 +20,11 @@ type Service struct {
 	Dir   string `yaml:"dir"`   // tương đối workspace_root
 	Start string `yaml:"start"` // lệnh shell chạy trong Dir
 
+	// RepoDir: git repo của service — chỉ cần khi Dir KHÔNG phải repo/với repo
+	// khác dir (vd wm-be dir=warehouse-management nhưng repo là backend/).
+	// Rỗng → dùng Dir (service thường) hoặc bỏ qua (compose).
+	RepoDir string `yaml:"repo_dir"`
+
 	// Hạ tầng docker
 	ComposeDir     string `yaml:"compose_dir"`
 	ComposeFile    string `yaml:"compose_file"`

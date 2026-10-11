@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"smatec/port-manager/internal/config"
+	"smatec/port-manager/internal/git"
 	"smatec/port-manager/internal/proc"
 	"smatec/port-manager/internal/scan"
 )
@@ -60,10 +61,97 @@ func runCLI(args []string) {
 			}
 			fmt.Println("Đã tắt.")
 		}
+	case "-branches":
+		if len(args) < 2 {
+			fmt.Fprintln(os.Stderr, "thiếu id service: -branches <id>")
+			os.Exit(2)
+		}
+		cfg, _, root, err := loadCore()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "lỗi load config:", err)
+			os.Exit(1)
+		}
+		printRepoDetails(cfg, root, args[1])
+	case "-switch":
+		if len(args) < 3 {
+			fmt.Fprintln(os.Stderr, "thiếu tham số: -switch <id> <branch>")
+			os.Exit(2)
+		}
+		cfg, _, root, err := loadCore()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "lỗi load config:", err)
+			os.Exit(1)
+		}
+		s, ok := cfg.Service(args[1])
+		if !ok {
+			fmt.Fprintf(os.Stderr, "không tìm thấy service %q\n", args[1])
+			os.Exit(2)
+		}
+		rd := scan.RepoDirPath(cfg, root, s)
+		if rd == "" {
+			fmt.Fprintf(os.Stderr, "service %s không khai báo git repo\n", s.ID)
+			os.Exit(1)
+		}
+		if err := git.Switch(rd, args[2]); err != nil {
+			fmt.Fprintln(os.Stderr, "LỖI:", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Đã chuyển %s sang %s\n", s.ID, args[2])
 	default:
-		fmt.Fprintf(os.Stderr, "flag không rõ: %s (dùng -scan | -start <id> | -stop <id> | -version)\n", args[0])
+		fmt.Fprintf(os.Stderr, "flag không rõ: %s (dùng -scan | -start <id> | -stop <id> | -branches <id> | -switch <id> <branch> | -version)\n", args[0])
 		os.Exit(2)
 	}
+}
+
+func printRepoDetails(cfg *config.Config, root, id string) {
+	s, ok := cfg.Service(id)
+	if !ok {
+		fmt.Fprintf(os.Stderr, "không tìm thấy service %q\n", id)
+		os.Exit(2)
+	}
+	d, err := git.Details(scan.RepoDirPath(cfg, root, s))
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "LỖI:", err)
+		os.Exit(1)
+	}
+	v := d.View
+	fmt.Printf("Repo     : %s%s\n", v.TopLevel, worktreeSuffix(v))
+	fmt.Printf("Branch   : %s", v.Branch)
+	if v.Upstream != "" {
+		fmt.Printf(" (theo %s", v.Upstream)
+		if v.Ahead > 0 {
+			fmt.Printf(", ahead %d", v.Ahead)
+		}
+		if v.Behind > 0 {
+			fmt.Printf(", behind %d", v.Behind)
+		}
+		fmt.Print(")")
+	}
+	fmt.Println()
+	fmt.Printf("Thay đổi : %d chưa commit\n", v.Dirty)
+	fmt.Println("Branches :")
+	for _, b := range d.Branches {
+		cur := ""
+		if b == v.Branch && !v.Detached {
+			cur = "  ← hiện tại"
+		}
+		fmt.Printf("  - %s%s\n", b, cur)
+	}
+	fmt.Println("Worktrees:")
+	for _, w := range d.Worktrees {
+		cur := ""
+		if w.Current {
+			cur = "  ← hiện tại"
+		}
+		fmt.Printf("  - %s (%s)%s\n", w.Path, w.Branch, cur)
+	}
+}
+
+func worktreeSuffix(v *git.RepoView) string {
+	if v.IsWorktree {
+		return "  [linked worktree]"
+	}
+	return ""
 }
 
 func printScanResult(res *scan.Result) {
@@ -86,6 +174,13 @@ func printScanResult(res *scan.Result) {
 			fmt.Printf("%s%-40s %-12s %-10s", mark, s.Name, strings.Join(ports, " "), statusVN(s.Status))
 			if s.PID != 0 {
 				fmt.Printf(" pid=%-7d %s", s.PID, truncateStr(s.Command, 52))
+			}
+			if s.Repo != nil {
+				b := s.Repo.Branch
+				if s.Repo.Dirty > 0 {
+					b += fmt.Sprintf(" *%d", s.Repo.Dirty)
+				}
+				fmt.Printf("  ⎇ %s%s", b, worktreeSuffix(s.Repo))
 			}
 			fmt.Println()
 		}
