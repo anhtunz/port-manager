@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SMATEC Port Manager</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <h1>SMATEC Port Manager</h1>
+      <span id="ver" class="badge"></span>
+    </div>
+    <div class="controls">
+      <label class="muted"><input type="checkbox" id="auto" checked /> Tự quét 3s</label>
+      <button id="btn-refresh" class="btn ghost">Quét lại</button>
+      <span id="scanned" class="muted"></span>
+    </div>
+  </header>
+
+  <div id="mockbar" class="banner warn hidden">
+    Đang chạy ở chế độ <b>MOCK</b> (ngoài app Wails) — dữ liệu chỉ là mẫu để xem giao diện.
+  </div>
+  <div id="errbar" class="banner error hidden"></div>
+
+  <main id="content"></main>
+
+  <footer>
+    Nguồn cấu hình cổng: <b>AGENTS.md mục 10</b> — <code>ports.yaml</code> chỉ là mirror.
+    Dấu <span class="badge mini">app</span> = service do app này bật (có log, tắt được cả cây process).
+  </footer>
+
+  <div id="overlay" class="overlay hidden"><div id="modal" class="modal"></div></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,150 @@
+# ============================================================================
+# ports.yaml — SMATEC Port Manager
+#
+# ⚠️  NGUỒN SỰ THẬT về port là bảng quy hoạch ở **AGENTS.md mục 10** (root
+#     workspace smatec/). File này chỉ là MIRROR: đổi/thêm port phải sửa
+#     AGENTS.md TRƯỚC rồi mirror sang đây trong cùng một đợt.
+#
+# workspace_root: gốc smatec/ — dir/compose_dir của service tính từ đây.
+#                 Tương đối theo thư mục chứa file config này.
+# unknown_ignore_commands: tên process (khớp đầu, không phân biệt hoa thường)
+#                 bị ẨN khỏi mục "Cổng lạ" — noise hệ thống/desktop app.
+# unknown_ignore_ports: port bị ẩn khỏi mục "Cổng lạ" (vd 6790 = utoopack
+#                 mở nội bộ cạnh WM FE 6789).
+# ============================================================================
+
+workspace_root: ".."
+
+unknown_ignore_commands:
+  - rapportd          # macOS Continuity
+  - ControlCenter     # macOS AirPlay/Screen Sharing
+  - Paseo
+  - cloudflared
+  - DataGrip          # JetBrains IDE server + helper java
+  - java
+  - Code Helper       # VSCode helper processes
+  - ZCode
+  - embedding
+  - tgate             # LLM gateway local
+
+unknown_ignore_ports:
+  - 6790              # utoopack nội bộ cạnh WM FE 6789
+  - 6791              # utoopack nội bộ cạnh WM FE 6789
+  - 6792              # utoopack nội bộ cạnh WM FE 6789
+
+groups:
+  - name: Backend Go
+    services:
+      - id: auth-be
+        name: auth-service BE (Go · Gin · gRPC)
+        ports: [3000, 9090]
+        dir: auth-service/backend
+        start: make run
+      - id: wm-be
+        name: warehouse-management BE
+        ports: [3001, 9092]
+        dir: warehouse-management
+        start: make run-be
+      - id: notification-be
+        name: notification-service BE
+        ports: [3004, 9091]
+        dir: notification-service/backend
+        start: make dev
+      - id: assistant-be
+        name: assistant-service BE (chatbox AI)
+        ports: [3005]           # gRPC 9093 dự phòng — phase 1 chưa bật, không khai
+        dir: assistant-service/backend
+        start: make run
+      - id: telegram-emulator-be
+        name: telegram-emulator (Bot API giả)
+        ports: [3010]
+        dir: telegram-emulator
+        start: make backend
+      - id: facility-be
+        name: facility BE (fm-backend)
+        ports: [6868]
+        dir: facility
+        start: make run-be
+      - id: base-be
+        name: base BE
+        ports: [8090]
+        dir: base/backend
+        start: make dev
+
+  - name: Frontend
+    services:
+      - id: auth-fe
+        name: auth-frontend (React admin)
+        ports: [3003]
+        dir: auth-service/auth-frontend
+        start: npm run dev
+      - id: portal-fe
+        name: portal-frontend
+        ports: [8000]
+        dir: auth-service/portal-frontend
+        start: npm run dev
+      - id: base-fe
+        name: base FE
+        ports: [8091]
+        dir: base/frontend
+        start: npm run dev
+      - id: facility-fe
+        name: facility FE
+        ports: [6869]
+        dir: facility/frontend
+        start: npm run dev
+      - id: wm-fe
+        name: warehouse-management FE (umi max)
+        ports: [6789]
+        dir: warehouse-management/frontend
+        start: npm run dev
+      - id: telegram-emulator-fe
+        name: telegram-emulator web UI (Vite dev)
+        ports: [3011]
+        dir: telegram-emulator
+        start: make frontend
+
+  - name: Hạ tầng (docker)
+    services:
+      - id: infra-postgres
+        name: PostgreSQL (docker-shared)
+        ports: [5432]
+        compose_dir: docker-shared
+        compose_file: docker-compose.yml
+        compose_service: postgres
+      - id: infra-redis
+        name: Redis (docker-shared)
+        ports: [6379]
+        compose_dir: docker-shared
+        compose_file: docker-compose.yml
+        compose_service: redis
+      - id: infra-rabbitmq
+        name: RabbitMQ (docker-shared)
+        ports: [5672]
+        compose_dir: docker-shared
+        compose_file: docker-compose.yml
+        compose_service: rabbitmq
+      - id: infra-mailpit
+        name: Mailpit (SMTP :1025 · UI :8025)
+        ports: [1025, 8025]
+        compose_dir: docker-shared
+        compose_file: docker-compose.yml
+        compose_service: mailpit
+      - id: infra-rustfs
+        name: RustFS (S3 :9000 · console :9001)
+        ports: [9000, 9001]
+        compose_dir: docker-shared
+        compose_file: docker-compose.yml
+        compose_service: rustfs
+      - id: infra-wm-nginx
+        name: wm-frontend-nginx (preview dist WM)
+        ports: [8080]
+        compose_dir: warehouse-management/frontend
+        compose_file: compose.yml
+        compose_service: frontend
+      - id: infra-fm-redis
+        name: fm-redis (facility dev)
+        ports: [6381]
+        compose_dir: facility/backend
+        compose_file: docker-compose.dev.yml
+        compose_service: redis
