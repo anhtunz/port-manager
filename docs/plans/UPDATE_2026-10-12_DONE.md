@@ -2,7 +2,7 @@
 
 > **Phân loại: UPDATE** — mở rộng app `port-manager` đang có (thêm dữ liệu scan + bindings + UI modal).
 > Branch: `update/git-branch-switch` (từ main). Bump version `y`: 0.1.0 → **0.2.0**.
-> Trạng thái: `IN_PROGRESS` (đổi tên file khi chuyển trạng thái).
+> Trạng thái: `DONE` (2026-10-12) — xem phần **Kết quả** ở cuối file.
 
 ## 1. Bối cảnh
 
@@ -73,3 +73,30 @@ thay vì mở terminal từng repo.
 3. Chuyển một service sang nhánh khác (repo sạch) → chip cập nhật sau ~3s; service đang chạy giữ nguyên.
 4. Tạo thay đổi chưa commit rồi switch sang nhánh đụng cùng file → app hiện lỗi git nguyên văn, không mất gì.
 5. Switch về nhánh cũ + restart service từ app nếu muốn chạy code mới.
+
+---
+
+## Kết quả (DONE — 2026-10-12)
+
+**Đã làm:** package `internal/git` mới (`Resolve`/`Branches`/`Worktrees`/`Switch`/`Details`, worktree
+detect qua `--git-common-dir` ≠ `--git-dir`); `ports.yaml` thêm `repo_dir` (wm-be, facility-be,
+infra-wm-nginx, infra-fm-redis) + `ServiceView.Repo` với dedupe resolve theo repo; bindings
+`RepoDetails`/`SwitchBranch`; CLI thêm `-branches`, `-switch`, `-scan` in thêm ⎇ branch; FE chip
+`⎇ branch` + modal repo (branches/worktrees/ô nhập nhánh/cảnh báo dirty + service đang chạy).
+
+**File chính:** `internal/git/git.go`, `internal/git/git_test.go` (mới); `internal/config/config.go`,
+`internal/scan/scan.go`, `app.go`, `cli.go`, `main.go`, `ports.yaml`, `frontend/dist/{app.js,style.css,index.html}`,
+`README.md`, `VERSION` (mới: 0.2.0).
+
+**Version:** 0.1.0 → **0.2.0** (UPDATE → bump `y`).
+
+**Kết quả build/test:**
+- `go test ./...` xanh (unit git 7 test trên repo tạm: branch/dirty/switch/refuse-conflict/worktree/details).
+- E2E thật (chỉ đọc): `-scan` hiện đúng branch 13 service (auth master, assistant
+  update/generic-api-prompt, base BE/FE update/*, wm-be/fm-redis qua repo_dir, docker-shared ẩn chip);
+  thời gian scan ~0.83s — git không làm scan chậm đáng kể (tác động 5.3 không cần throttle).
+- Guard `-switch`: tên nhánh bất hợp lệ (`-x`) bị chặn; nhánh không tồn tại → lỗi git nguyên văn; không switch repo thật.
+- UI mock qua browser: chip render đúng 5 service có repo, ẩn với service không repo; modal đúng cả
+  kịch bản worktree (wm-be) lẫn dirty (auth-be); ảnh screenshot modal xác nhận layout.
+
+**Case test thủ công cho user:** như mục "User test thủ công" ở trên (5 bước).

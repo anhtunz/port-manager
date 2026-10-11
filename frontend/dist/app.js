@@ -19,11 +19,11 @@ const MOCK = {
     {
       name: "Backend Go",
       services: [
-        { id: "auth-be", name: "auth-service BE (Go · Gin · gRPC)", ports: [{ port: 3000, open: true }, { port: 9090, open: true }], status: "running", pid: 17210, command: "/private/var/folders/.../exe/server", managedByApp: false, startCmd: "make run", isCompose: false },
-        { id: "wm-be", name: "warehouse-management BE", ports: [{ port: 3001, open: true }, { port: 9092, open: true }], status: "running", pid: 75197, command: "/private/var/folders/.../exe/main", managedByApp: false, startCmd: "make run-be", isCompose: false },
+        { id: "auth-be", name: "auth-service BE (Go · Gin · gRPC)", ports: [{ port: 3000, open: true }, { port: 9090, open: true }], status: "running", pid: 17210, command: "/private/var/folders/.../exe/server", managedByApp: false, startCmd: "make run", isCompose: false, repo: { topLevel: "/Users/tunztunzz/Documents/smatec/auth-service/backend", branch: "master", detached: false, isWorktree: false, dirty: 2, ahead: 0, behind: 0, upstream: "origin/master" } },
+        { id: "wm-be", name: "warehouse-management BE", ports: [{ port: 3001, open: true }, { port: 9092, open: true }], status: "running", pid: 75197, command: "/private/var/folders/.../exe/main", managedByApp: false, startCmd: "make run-be", isCompose: false, repo: { topLevel: "/Users/tunztunzz/Documents/smatec/warehouse-management/backend", branch: "feat/wm-grpc", detached: false, isWorktree: true, dirty: 0, ahead: 1, behind: 0, upstream: "origin/feat/wm-grpc" } },
         { id: "notification-be", name: "notification-service BE", ports: [{ port: 3004, open: false }, { port: 9091, open: false }], status: "stopped", pid: 0, command: "", managedByApp: false, startCmd: "make dev", isCompose: false },
         { id: "assistant-be", name: "assistant-service BE (chatbox AI)", ports: [{ port: 3005, open: false }], status: "stopped", pid: 0, command: "", managedByApp: false, startCmd: "make run", isCompose: false },
-        { id: "telegram-emulator-be", name: "telegram-emulator (Bot API giả)", ports: [{ port: 3010, open: false }], status: "stopped", pid: 0, command: "", managedByApp: false, startCmd: "make backend", isCompose: false },
+        { id: "telegram-emulator-be", name: "telegram-emulator (Bot API giả)", ports: [{ port: 3010, open: false }], status: "stopped", pid: 0, command: "", managedByApp: false, startCmd: "make backend", isCompose: false, repo: { topLevel: "/Users/tunztunzz/Documents/smatec/telegram-emulator", branch: "main", detached: false, isWorktree: false, dirty: 11, ahead: 0, behind: 0 } },
         { id: "facility-be", name: "facility BE (fm-backend)", ports: [{ port: 6868, open: false }], status: "stopped", pid: 0, command: "", managedByApp: false, startCmd: "make run-be", isCompose: false },
         { id: "base-be", name: "base BE", ports: [{ port: 8090, open: false }], status: "stopped", pid: 0, command: "", managedByApp: false, startCmd: "make dev", isCompose: false },
       ],
@@ -32,11 +32,11 @@ const MOCK = {
       name: "Frontend",
       services: [
         { id: "auth-fe", name: "auth-frontend (React admin)", ports: [{ port: 3003, open: false }], status: "stopped", pid: 0, command: "", managedByApp: false, startCmd: "npm run dev", isCompose: false },
-        { id: "portal-fe", name: "portal-frontend", ports: [{ port: 8000, open: false }], status: "stopped", pid: 0, command: "", managedByApp: false, startCmd: "npm run dev", isCompose: false },
+        { id: "portal-fe", name: "portal-frontend", ports: [{ port: 8000, open: false }], status: "stopped", pid: 0, command: "", managedByApp: false, startCmd: "npm run dev", isCompose: false, repo: { topLevel: "/Users/tunztunzz/Documents/smatec/auth-service/portal-frontend", branch: "master", detached: false, isWorktree: false, dirty: 0, ahead: 0, behind: 3, upstream: "origin/master" } },
         { id: "base-fe", name: "base FE", ports: [{ port: 8091, open: false }], status: "stopped", pid: 0, command: "", managedByApp: false, startCmd: "npm run dev", isCompose: false },
         { id: "facility-fe", name: "facility FE", ports: [{ port: 6869, open: false }], status: "stopped", pid: 0, command: "", managedByApp: false, startCmd: "npm run dev", isCompose: false },
         { id: "wm-fe", name: "warehouse-management FE (umi max)", ports: [{ port: 6789, open: true }], status: "running", pid: 4632, command: "node /Users/tunztunzz/Documents/smatec/warehouse-management/frontend/node_modules/.bin/max dev", managedByApp: false, startCmd: "npm run dev", isCompose: false },
-        { id: "telegram-emulator-fe", name: "telegram-emulator web UI (Vite dev)", ports: [{ port: 3011, open: false }], status: "stopped", pid: 0, command: "", managedByApp: false, startCmd: "make frontend", isCompose: false },
+        { id: "telegram-emulator-fe", name: "telegram-emulator web UI (Vite dev)", ports: [{ port: 3011, open: false }], status: "stopped", pid: 0, command: "", managedByApp: false, startCmd: "make frontend", isCompose: false, repo: { topLevel: "/Users/tunztunzz/Documents/smatec/telegram-emulator", branch: "main", detached: false, isWorktree: false, dirty: 11, ahead: 0, behind: 0 } },
       ],
     },
     {
@@ -104,6 +104,16 @@ function serviceRow(s) {
   if (s.isCompose) badges.push(`<span class="badge mini">docker</span>`);
   if (s.managedByApp) badges.push(`<span class="badge mini">app</span>`);
 
+  // Chip branch — bấm mở modal chi tiết repo / chuyển nhánh
+  let repoChip = "";
+  if (s.repo) {
+    const dirty = s.repo.dirty > 0 ? `<span class="chip-dot">●${s.repo.dirty}</span>` : "";
+    const wt = s.repo.isWorktree ? `<span class="chip-wt">wt</span>` : "";
+    repoChip = `
+      <button class="branch-chip" data-act="repo" data-id="${esc(s.id)}"
+              title="Chi tiết repo — xem/chuyển nhánh">⎇ ${esc(s.repo.branch)} ${dirty}${wt}</button>`;
+  }
+
   const proc =
     s.pid !== 0
       ? `<div class="proc">pid <b>${s.pid}</b> · ${esc(s.command || "?")}</div>`
@@ -127,7 +137,7 @@ function serviceRow(s) {
       <div><span class="pill ${st.cls}">${st.label}</span></div>
       <div>
         <div class="svc-name">${esc(s.name)} ${badges.join(" ")}</div>
-        <div class="svc-sub">${esc(s.id)}</div>
+        <div class="svc-sub">${esc(s.id)} ${repoChip}</div>
       </div>
       <div class="ports">${ports}</div>
       <div>${proc}</div>
@@ -225,6 +235,122 @@ async function logModal(id) {
 }
 
 // ---------------------------------------------------------------------------
+// Repo / branch
+// ---------------------------------------------------------------------------
+function basename(p) {
+  return String(p || "").split("/").filter(Boolean).pop() || p;
+}
+
+function mockRepoDetails(id) {
+  const svc = findService(id);
+  if (!svc || !svc.repo) return { error: "service không có git repo" };
+  const r = svc.repo;
+  return {
+    view: r,
+    branches: [r.branch, "master", "main", "update/git-branch-switch"].filter((b, i, a) => a.indexOf(b) === i),
+    worktrees: [
+      { path: r.topLevel, branch: r.isWorktree ? "master" : r.branch, detached: false, current: !r.isWorktree },
+      ...(r.isWorktree ? [{ path: r.topLevel + "-wt", branch: r.branch, detached: false, current: true }] : []),
+    ],
+  };
+}
+
+async function repoModal(id) {
+  let d;
+  try {
+    d = API ? await API.RepoDetails(id) : mockRepoDetails(id);
+  } catch (e) {
+    showError("Lỗi đọc repo: " + (e && e.message ? e.message : e));
+    return;
+  }
+  if (d.error) {
+    showError("Repo: " + d.error);
+    return;
+  }
+  const v = d.view;
+  const svc = findService(id);
+  const running = svc && svc.status !== "stopped";
+
+  const branches = (d.branches || [])
+    .map((b) => {
+      const isCur = b === v.branch && !v.detached;
+      return `
+      <div class="branch-row">
+        <span class="mono">${esc(b)}${isCur ? ' <span class="cur-mark">← hiện tại</span>' : ""}</span>
+        ${isCur ? "" : `<button class="btn primary sm" data-act="switch" data-id="${esc(id)}" data-branch="${esc(b)}">Chuyển</button>`}
+      </div>`;
+    })
+    .join("") || `<div class="muted">Không có branch local nào</div>`;
+
+  const worktrees = (d.worktrees || [])
+    .map(
+      (w) => `
+      <div class="wt-row mono">
+        <span>${w.current ? "📍 " : "　"}${esc(w.path)}</span>
+        <span class="wt-branch">${esc(w.branch)}</span>
+      </div>`
+    )
+    .join("");
+
+  const upstream =
+    v.upstream
+      ? ` (theo <code>${esc(v.upstream)}</code>${v.ahead ? `, ahead ${v.ahead}` : ""}${v.behind ? `, behind ${v.behind}` : ""})`
+      : "";
+
+  modalBusy = true;
+  openModal(`
+    <h3>Repo — ${esc(basename(v.topLevel))}${v.isWorktree ? ' <span class="badge mini">worktree</span>' : ""}</h3>
+    <div class="body">
+      <div><code>${esc(v.topLevel)}</code></div>
+      <div style="margin-top:6px">Nhánh: <b>${esc(v.branch)}</b>${upstream}</div>
+      <div>${v.dirty > 0 ? `<span class="dirty-note">● ${v.dirty} thay đổi chưa commit</span>` : "Làm việc sạch ✓"}</div>
+      ${running ? `<div class="warn-note">⚠️ Service đang chạy — sau khi chuyển nhánh hãy restart service để chạy code mới.</div>` : ""}
+    </div>
+    <h4>Chuyển nhánh (local)</h4>
+    <div class="branch-list">${branches}</div>
+    <div class="custom-branch">
+      <input id="branch-input" class="branch-input mono" placeholder="nhánh khác: local hoặc origin/..." />
+      <button class="btn primary sm" data-act="switch" data-id="${esc(id)}" data-branch-input="1">Chuyển</button>
+    </div>
+    <h4>Các worktree của repo</h4>
+    <div class="wt-list">${worktrees || '<div class="muted">—</div>'}</div>
+    <div class="modal-actions" style="margin-top:12px">
+      <button class="btn ghost" id="m-close">Đóng</button>
+    </div>`);
+  document.getElementById("m-close").onclick = closeModal;
+  const input = document.getElementById("branch-input");
+  if (input) input.addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter") {
+      const val = input.value.trim();
+      if (val) doSwitch(id, val);
+    }
+  });
+}
+
+async function doSwitch(id, branch) {
+  if (!branch || !API) return;
+  const svc = findService(id);
+  const repo = svc && svc.repo;
+  const ok = await confirmModal({
+    title: `Chuyển nhánh — ${id}`,
+    body:
+      `<code>${esc(repo ? repo.branch : "?")}</code> → <code>${esc(branch)}</code>` +
+      (svc && svc.status !== "stopped" ? `<br><br>⚠️ Service đang chạy — cần restart service để chạy code mới.` : "") +
+      (repo && repo.dirty > 0 ? `<br>⚠️ Repo có ${repo.dirty} thay đổi chưa commit — git sẽ từ chối nếu đụng chạm.` : ""),
+    okText: "Chuyển",
+    danger: false,
+  });
+  if (!ok) return;
+  try {
+    await API.SwitchBranch(id, branch);
+    closeModal();
+    await refresh();
+  } catch (e) {
+    showError("Chuyển nhánh lỗi:\n" + (e && e.message ? e.message : e));
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Actions
 // ---------------------------------------------------------------------------
 async function doStart(id) {
@@ -305,6 +431,13 @@ document.addEventListener("click", (ev) => {
   else if (act === "stop") doStop(btn.dataset.id);
   else if (act === "log") logModal(btn.dataset.id);
   else if (act === "kill") doKillUnknown(Number(btn.dataset.port), Number(btn.dataset.pid), btn.dataset.cmd);
+  else if (act === "repo") repoModal(btn.dataset.id);
+  else if (act === "switch") {
+    const val = btn.dataset.branchInput
+      ? (document.getElementById("branch-input") || {}).value
+      : btn.dataset.branch;
+    doSwitch(btn.dataset.id, (val || "").trim());
+  }
 });
 
 document.getElementById("btn-refresh").onclick = async () => { await refresh(); schedulePoll(); };

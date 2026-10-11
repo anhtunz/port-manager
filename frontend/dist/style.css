@@ -168,3 +168,75 @@ h1 { font-size: 18px; font-weight: 700; }
 
 footer { margin-top: 8px; color: var(--muted); font-size: 12px; }
 footer code { font-family: ui-monospace, Menlo, monospace; }
+
+/* Branch chip + modal repo */
+.branch-chip {
+  background: rgba(59, 130, 246, 0.12);
+  color: #93c5fd;
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  border-radius: 99px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  padding: 1px 9px;
+  cursor: pointer;
+}
+.branch-chip:hover { background: rgba(59, 130, 246, 0.25); }
+.chip-dot { color: var(--warn); }
+.chip-wt {
+  background: rgba(139, 92, 246, 0.2);
+  color: #c4b5fd;
+  border-radius: 5px;
+  padding: 0 5px;
+  font-size: 10px;
+}
+
+.modal h4 {
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 14px 0 6px;
+}
+.branch-list { display: flex; flex-direction: column; }
+.branch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+.branch-row:nth-child(odd) { background: rgba(51, 65, 85, 0.35); }
+.cur-mark { color: var(--ok); font-size: 11px; }
+.custom-branch { display: flex; gap: 8px; margin-top: 8px; }
+.branch-input {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--card-edge);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 6px 10px;
+  font-size: 12px;
+  outline: none;
+}
+.branch-input:focus { border-color: var(--accent); }
+.wt-list { display: flex; flex-direction: column; gap: 4px; }
+.wt-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  background: rgba(51, 65, 85, 0.35);
+  font-size: 11px;
+}
+.wt-branch { color: #c4b5fd; }
+.dirty-note { color: var(--warn); font-weight: 600; }
+.warn-note {
+  margin-top: 8px;
+  background: rgba(245, 158, 11, 0.12);
+  color: #fde68a;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+}

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"smatec/port-manager/internal/config"
+	"smatec/port-manager/internal/git"
 )
 
 // Listener là một socket TCP đang LISTEN trên máy (một port có thể có nhiều
@@ -25,15 +26,16 @@ type PortView struct {
 }
 
 type ServiceView struct {
-	ID           string     `json:"id"`
-	Name         string     `json:"name"`
-	Ports        []PortView `json:"ports"`
-	Status       string     `json:"status"` // running | partial | stopped
-	PID          int        `json:"pid"`
-	Command      string     `json:"command"` // full command line (từ ps) của listener
-	ManagedByApp bool       `json:"managedByApp"`
-	StartCmd     string     `json:"startCmd"`
-	IsCompose    bool       `json:"isCompose"`
+	ID           string        `json:"id"`
+	Name         string        `json:"name"`
+	Ports        []PortView    `json:"ports"`
+	Status       string        `json:"status"` // running | partial | stopped
+	PID          int           `json:"pid"`
+	Command      string        `json:"command"` // full command line (từ ps) của listener
+	ManagedByApp bool          `json:"managedByApp"`
+	StartCmd     string        `json:"startCmd"`
+	IsCompose    bool          `json:"isCompose"`
+	Repo         *git.RepoView `json:"repo,omitempty"` // nil nếu dir không thuộc git repo
 }
 
 type UnknownListener struct {
@@ -143,6 +145,19 @@ func CommandLines(pids []int) map[int]string {
 	return m
 }
 
+// RepoDirPath trả thư mục git repo của service (đã gắn workspace root).
+// Ưu tiên repo_dir khai trong config; mặc định Dir với service thường,
+// bỏ qua với compose (compose dir không mặc định là repo).
+func RepoDirPath(cfg *config.Config, root string, s config.Service) string {
+	if s.RepoDir != "" {
+		return cfg.ResolveDir(root, s.RepoDir)
+	}
+	if s.IsCompose() {
+		return ""
+	}
+	return cfg.ResolveDir(root, s.Dir)
+}
+
 // ScanAll quét trạng thái toàn bộ service trong config + các cổng lạ.
 // managed cho biết service nào đang do app quản lý (từ proc.Manager).
 func ScanAll(cfg *config.Config, root string, managed func(id string) bool) *Result {
@@ -171,6 +186,22 @@ func ScanAll(cfg *config.Config, root string, managed func(id string) bool) *Res
 		pids = append(pids, p)
 	}
 	cmds := CommandLines(pids)
+
+	// Resolve git repo theo repo dir, dedupe trong 1 lần quét (BE/FE emulator
+	// chung repo; resolve nil cũng cache để không probe lại mỗi dòng).
+	repoCache := map[string]*git.RepoView{}
+	repoOf := func(s config.Service) *git.RepoView {
+		rd := RepoDirPath(cfg, root, s)
+		if rd == "" {
+			return nil
+		}
+		if rv, ok := repoCache[rd]; ok {
+			return rv
+		}
+		r, _ := git.Resolve(rd)
+		repoCache[rd] = r
+		return r
+	}
 
 	for _, g := range cfg.Groups {
 		gv := GroupView{Name: g.Name, Services: []ServiceView{}}
@@ -210,6 +241,7 @@ func ScanAll(cfg *config.Config, root string, managed func(id string) bool) *Res
 					sv.Command = first.Command
 				}
 			}
+			sv.Repo = repoOf(s)
 			gv.Services = append(gv.Services, sv)
 		}
 		res.Groups = append(res.Groups, gv)

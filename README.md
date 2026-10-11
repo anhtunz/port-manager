@@ -6,7 +6,7 @@ App desktop macOS (Go + Wails) để xem service nào đang chạy trên cổng 
 > **Nguồn sự thật cổng:** bảng quy hoạch port ở `AGENTS.md` mục 10 (root workspace).
 > File `ports.yaml` của app chỉ là **mirror** — đổi port phải sửa AGENTS.md TRƯỚC rồi mới mirror sang đây.
 
-## Tính năng (v0.1.0)
+## Tính năng (v0.2.0)
 
 - Quét trạng thái từng service theo 3 nhóm: **Backend Go** · **Frontend** · **Hạ tầng (docker)**,
   nhận diện PID + full command của process đang lắng nghe (`lsof` + `ps`, không cần cài thêm gì).
@@ -16,6 +16,11 @@ App desktop macOS (Go + Wails) để xem service nào đang chạy trên cổng 
 - Mục **"Cổng lạ"**: listener không nằm trong danh sách cấu hình (lọc bớt noise hệ thống qua
   `unknown_ignore_commands` + `unknown_ignore_ports`) — chỗ bắt vite ma / process ma.
 - Auto-refresh 3 giây (tắt được ở toolbar).
+- **Git branch/worktree**: mỗi service có repo hiển thị chip `⎇ branch` kèm `●N` (số thay đổi
+  chưa commit) và `wt` (linked worktree); bấm chip mở modal chi tiết repo — danh sách branch local
+  (chuyển bằng 1 click có xác nhận), ô nhập branch khác (Enter để chuyển), danh sách worktree.
+  Repo của service xác định qua `dir`, khác thì khai `repo_dir` trong `ports.yaml`.
+  Chỉ `git switch` thuần — KHÔNG force/stash/discard; repo bẩn mà git từ chối thì báo lỗi nguyên văn.
 
 ## Build & chạy
 
@@ -35,9 +40,11 @@ Docker Desktop đang chạy nếu cần điều khiển hạ tầng.
 ## CLI headless
 
 ```bash
-./build/port-manager -scan          # in trạng thái toàn bộ service + cổng lạ
+./build/port-manager -scan                    # in trạng thái toàn bộ service + cổng lạ (+ ⎇ branch)
 ./build/port-manager -start portal-fe
 ./build/port-manager -stop portal-fe
+./build/port-manager -branches base-be        # chi tiết repo: branch, worktree, dirty
+./build/port-manager -switch base-be master   # chuyển nhánh (git switch thuần, không force)
 ./build/port-manager -version
 ```
 
@@ -51,6 +58,12 @@ Docker Desktop đang chạy nếu cần điều khiển hạ tầng.
   **Bật** = `docker compose up -d`.
 
 ## Changelog
+
+## v0.2.0 - 2026-10-12
+
+- (UPDATE) Xem branch/worktree của từng service (chip ⎇ + modal repo) và chuyển nhánh local
+  từ app (`git switch` thuần, không force/stash/discard); CLI thêm `-branches <id>` / `-switch <id> <branch>`;
+  `ports.yaml` thêm trường `repo_dir` cho service mà thư mục chạy ≠ gốc repo.
 
 ## v0.1.0 - 2026-10-11
 

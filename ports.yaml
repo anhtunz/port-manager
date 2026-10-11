@@ -44,6 +44,7 @@ groups:
         name: warehouse-management BE
         ports: [3001, 9092]
         dir: warehouse-management
+        repo_dir: warehouse-management/backend   # dir gốc chỉ chứa Makefile tiện ích — repo là backend/
         start: make run-be
       - id: notification-be
         name: notification-service BE
@@ -64,6 +65,7 @@ groups:
         name: facility BE (fm-backend)
         ports: [6868]
         dir: facility
+        repo_dir: facility/backend   # tương tự wm-be — repo là backend/
         start: make run-be
       - id: base-be
         name: base BE
@@ -142,9 +144,11 @@ groups:
         compose_dir: warehouse-management/frontend
         compose_file: compose.yml
         compose_service: frontend
+        repo_dir: warehouse-management/frontend
       - id: infra-fm-redis
         name: fm-redis (facility dev)
         ports: [6381]
         compose_dir: facility/backend
         compose_file: docker-compose.dev.yml
         compose_service: redis
+        repo_dir: facility/backend

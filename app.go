@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"smatec/port-manager/internal/config"
+	"smatec/port-manager/internal/git"
 	"smatec/port-manager/internal/proc"
 	"smatec/port-manager/internal/scan"
 )
@@ -58,6 +59,33 @@ func (a *App) GetServiceLog(id string) string {
 // KillUnknown: user kill process lạ chiếm cổng (UI phải confirm trước).
 func (a *App) KillUnknown(port int, pid int) error {
 	return a.mgr.KillPID(pid)
+}
+
+// RepoDetails: chi tiết git repo của service (branch/worktree/dirty + branches + worktrees).
+func (a *App) RepoDetails(id string) *git.RepoDetails {
+	s, ok := a.cfg.Service(id)
+	if !ok {
+		return &git.RepoDetails{Error: "không tìm thấy service " + id}
+	}
+	d, err := git.Details(scan.RepoDirPath(a.cfg, a.root, s))
+	if err != nil {
+		return &git.RepoDetails{Error: err.Error()}
+	}
+	return d
+}
+
+// SwitchBranch chuyển nhánh repo chứa service. UI phải confirm trước khi gọi —
+// hàm không force, không stash, git từ chối khi conflict và lỗi trả nguyên văn.
+func (a *App) SwitchBranch(id string, branch string) error {
+	s, ok := a.cfg.Service(id)
+	if !ok {
+		return fmt.Errorf("không tìm thấy service %q", id)
+	}
+	dir := scan.RepoDirPath(a.cfg, a.root, s)
+	if dir == "" {
+		return fmt.Errorf("service %s không khai báo git repo", id)
+	}
+	return git.Switch(dir, branch)
 }
 
 func (a *App) Version() string {
