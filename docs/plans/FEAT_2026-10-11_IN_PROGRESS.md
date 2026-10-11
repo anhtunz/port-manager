@@ -1,0 +1,101 @@
+# FEAT — Port Manager: app desktop quản lý cổng dev workspace smatec
+
+> **Phân loại: FEAT** — tính năng hoàn toàn mới, repo mới chưa từng tồn tại.
+> Trạng thái: `IN_PROGRESS` (đổi tên file khi chuyển trạng thái).
+>
+> **Ghi chú quyết định:** 3 câu hỏi chốt (stack / phạm vi bật-tắt / phạm vi cổng) đã hỏi user
+> nhưng user không trả lời trong phiên → agent triển khai theo **phương án đề xuất**:
+> ① Go + Wails ② Tắt + Bật theo config ③ Tất cả cổng theo AGENTS.md mục 10.
+> User có thể đổi hướng sau — core logic (config/scan/proc) tách khỏi UI nên đổi shell không phải viết lại.
+
+## 1. Bối cảnh / vấn đề
+
+- Workspace `smatec/` có ~20 cổng dev được quy hoạch ở **AGENTS.md mục 10** (nguồn sự thật duy nhất):
+  BE Go (3000/3001/3004/3005/3010/6868/8090 + gRPC 909x), FE (3003/3011/6789/6869/8000/8091),
+  hạ tầng docker-shared (5432/6379/5672/9000/9001/1025/8025, wm-nginx 8080, fm-redis 6381).
+- Hiện trạng kiểm chứng 2026-10-11: auth BE đang chiếm 3000+9090, WM BE 3001+9092, WM FE 6789+6790,
+  hạ tầng docker chạy đủ; phát hiện `fm-redis` map ra host **6381** (cổng không có trong bảng AGENTS.md).
+- Pain point thực tế đã gặp nhiều lần: process "ma" chiếm cổng (vite ma 3001/3002, HEIC gap, port trôi),
+  phải lsof tay từng cổng, không có chỗ nhìn tổng quan service nào đang chạy.
+
+## 2. Mục tiêu
+
+App desktop macOS cho phép:
+
+1. **Xem** service nào đang chạy trên cổng nào (poll theo nhóm: Backend Go / Frontend / Hạ tầng docker).
+2. **Tắt** process đang chiếm cổng (kill TERM → KILL, có xác nhận, hiện PID + command).
+3. **Bật** service theo lệnh start cấu hình sẵn (`make`/`npm run dev`; hạ tầng qua `docker compose up -d`).
+4. **Quét cả cổng KHÔNG nằm trong cấu hình** — mục "Cổng lạ" để bắt process ma (lọc bớt noise hệ thống qua ignore list).
+
+## 3. Scope
+
+**Làm (v1):**
+- Quét + nhận diện listener qua `lsof` + `ps` (không thêm dependency hệ thống nào ngoài công cụ có sẵn trên macOS).
+- Bật/tắt service spawn bằng process group riêng (Setpgid), log ra `logs/<id>.log`.
+- Hạ tầng docker bật/tắt qua `docker compose stop/up -d` theo đúng compose_dir/service khai trong config.
+- UI dashboard dark theme, auto-refresh 3s (tắt được), confirm modal trước khi tắt/kill.
+- CLI headless: `-scan` / `-start <id>` / `-stop <id>` / `-version` (tiện test + script hoá).
+- Bump PATH từ login shell (`zsh -lc`) để app GUI launch từ Finder vẫn tìm được go/make/npm/docker.
+
+**Không làm (phase 2 nếu user muốn):**
+- Xem log realtime stream trong app, auto-restart, tray menubar, icon app riêng.
+- Quét port range tuỳ ý / UI thêm-sửa service ngay trong app (sửa qua `ports.yaml`).
+- Hỗ trợ Windows/Linux (chỉ macOS — darwin).
+
+## 4. Hợp đồng API (Wails bindings — nguồn sự thật phía FE)
+
+Go struct expose cho JS qua `window.go.main.App.*`:
+
+| Binding | Signature | Ý nghĩa |
+| --- | --- | --- |
+| `Scan` | `Scan() ScanResult` | Quét toàn bộ: groups + services + unknown ports + thời điểm quét |
+| `StartService` | `StartService(id string) error` | Bật service theo config (spawn hoặc compose up) |
+| `StopService` | `StopService(id string) error` | Tắt service (kill listener/process group hoặc compose stop) |
+| `GetServiceLog` | `GetServiceLog(id string) string` | 200 dòng cuối log của service do app bật |
+| `KillUnknown` | `KillUnknown(port int, pid int) error` | Kill process lạ chiếm cổng (UI phải confirm) |
+| `Version` | `Version() string` | Version app (từ file VERSION) |
+
+`ScanResult`: `{ scannedAt, groups: [{name, services: [{id, name, ports: [{port, open}], status, pid, command, managedByApp, startCmd, isCompose}]}], unknown: [{port, pid, command}] }`.
+`status` ∈ `running` (mọi port mở) / `partial` (mở một phần) / `stopped`.
+
+**Config `ports.yaml`** (nguồn sự thật thứ cấp — **mirror** của AGENTS.md mục 10; đổi port phải sửa AGENTS.md TRƯỚC):
+group → service: `{id, name, ports[], dir, start}` cho service thường;
+`{id, name, ports[], compose_dir, compose_file, compose_service}` cho hạ tầng;
++ `unknown_ignore_commands` lọc noise mục "Cổng lạ".
+
+## 5. Các bước thực hiện
+
+1. ✅ Khảo sát lệnh start từng service (Makefile/package.json/compose labels) — xong 2026-10-11.
+2. Khởi tạo repo + plan file + skeleton commit.
+3. Core Go: `internal/config` (load yaml), `internal/scan` (lsof + ps + phân loại), `internal/proc` (start/stop process group, log, PATH).
+4. Shell Wails (`main.go`, `app.go`) + CLI headless.
+5. Frontend tĩnh (vanilla HTML/JS/CSS, embed — không cần npm), mock mode để test UI ngoài app.
+6. Build `-tags desktop,production` + gói `PortManager.app` (script plist).
+7. Test: unit (scan parser, proc start/stop), E2E CLI scan trên máy thật, self-test bật/tắt telegram-emulator :3010 rồi dọn.
+8. Bump version 0.1.0 + changelog + commit + merge main; cập nhật AGENTS.md (mục 1 + mục 7).
+
+## 6. Tác động tiềm ẩn
+
+| # | Vấn đề | Đề xuất | Chốt |
+| --- | --- | --- | --- |
+| 1 | `ports.yaml` có thể lệch AGENTS.md mục 10 khi port đổi | Header file ghi rõ mirror; khi sửa bảng 10 sửa luôn yaml (2 dòng cùng commit AGENTS.md) | |
+| 2 | Kill nhầm process hệ thống nếu port lạ trùng | UI bắt buộc confirm, hiện PID + full command; `unknown_ignore_commands` lọc noise (rapportd, ControlCenter, Paseo, cloudflared, DataGrip, java, Code Helper, ZCode, tgate, embedding) | |
+| 3 | App GUI launch từ Finder thiếu PATH (go/make/npm/docker không thấy) | Bơm PATH từ `zsh -lc` một lần lúc mở app; lỗi PATH hiển thị thẳng vào log của service | |
+| 4 | utoopack WM FE chiếm thêm 6790 nội bộ → hiện "cổng lạ" mỗi lần | Đưa 6790 vào ignore theo port (cùng 49xxx hệ thống) | |
+| 5 | Service do app bật vẫn sống khi user quit app | Cố ý: không auto-kill khi thoát (service độc lập), log giữ lại trong `logs/` — ghi rõ trong README | |
+| 6 | go.work ở root chặn lệnh go của module mới | Makefile export `GOWORK=off` cho mọi target; không sửa go.work nếu user không đồng ý | |
+| 7 | `make backend` emulator yêu cầu web/dist tồn tại | README ghi chú chạy `make build-web` của emulator lần đầu; app chỉ báo lỗi log chứ không tự build hộ | |
+
+## 7. Tiêu chí nghiệm thu + case test thủ công
+
+**Tự động/tự test (agent):**
+- `go test ./...` xanh (parser lsof, proc start/stop trên port 5178 dải fe-*).
+- `go run . -scan` headless trên máy thật phản chiếu đúng hiện trạng (auth/WM đang chạy, hạ tầng docker up).
+- Self-test: bật `telegram-emulator-be` qua CLI → scan thấy 3010 → tắt → 3010 giải phóng, không để lại process.
+
+**User test thủ công:**
+1. `make build && make run` — cửa sổ app hiện bảng 3 nhóm service đúng trạng thái hiện tại.
+2. Bật một service đang tắt từ app (vd portal FE :8000) → dòng chuyển "Đang chạy" trong ~5s; tắt bằng nút Tắt → confirm → cổng giải phóng.
+3. Cố tình chạy 1 process chiếm cổng lạ (vd `python3 -m http.server 5173`) → mục "Cổng lạ" hiện đúng command → nút Tắt xử lý được.
+4. Tắt postgres từ nhóm Hạ tầng → `docker compose stop` không xoá container; bật lại → container chạy lại.
+5. Quit app rồi mở lại → service đang chạy vẫn hiển thị đúng (scan theo thực tế, không dựa state cũ).

@@ -1,0 +1,14 @@
+# Build artifacts
+build/
+bin/
+dist/
+
+# Log runtime do app ghi ra
+logs/
+
+# macOS
+.DS_Store
+
+# Editor
+*.swp
+.idea/
