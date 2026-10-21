@@ -32,7 +32,7 @@ func main() {
 
 func isCLIArg(a string) bool {
 	switch a {
-	case "-scan", "-start", "-stop", "-branches", "-switch", "-version":
+	case "-scan", "-start", "-stop", "-restart", "-branches", "-switch", "-version":
 		return true
 	}
 	return false

@@ -100,6 +100,11 @@ groups:
         ports: [6789]
         dir: warehouse-management/frontend
         start: npm run dev
+      - id: assistant-fe
+        name: assistant-service FE (console quản trị AI)
+        ports: [5180]
+        dir: assistant-service/frontend
+        start: npm run dev
       - id: telegram-emulator-fe
         name: telegram-emulator web UI (Vite dev)
         ports: [3011]
@@ -152,3 +157,9 @@ groups:
         compose_file: docker-compose.dev.yml
         compose_service: redis
         repo_dir: facility/backend
+      - id: infra-birthday-nginx
+        name: birthday-nginx (trang tĩnh cá nhân)
+        ports: [8088]
+        compose_dir: others/birthday
+        compose_file: docker-compose.yml
+        compose_service: birthday-nginx

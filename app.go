@@ -33,7 +33,15 @@ func (a *App) startup(ctx context.Context) {
 }
 
 func (a *App) Scan() *scan.Result {
-	return scan.ScanAll(a.cfg, a.root, a.mgr.IsManaged)
+	res := scan.ScanAll(a.cfg, a.root, a.mgr)
+	// Service từng do app bật vẫn còn file log để xem, kể cả khi app đã
+	// restart (lúc đó không còn process nào trong map quản lý).
+	for gi := range res.Groups {
+		for si := range res.Groups[gi].Services {
+			res.Groups[gi].Services[si].HasLog = a.mgr.HasLog(res.Groups[gi].Services[si].ID)
+		}
+	}
+	return res
 }
 
 func (a *App) StartService(id string) error {
@@ -52,6 +60,18 @@ func (a *App) StopService(id string) error {
 	return a.mgr.Stop(s, listenersOfPorts(s.Ports), a.cfg.ResolveDir(a.root, serviceDir(s)))
 }
 
+// RestartService tắt service rồi bật lại. Dùng cho service kẹt trong lúc
+// khởi động (process còn sống nhưng chưa lên cổng — lúc đó chưa có listener
+// để kill, chỉ tắt được nhờ process group mà app giữ) hoặc khi cần chạy lại
+// code mới.
+func (a *App) RestartService(id string) error {
+	s, ok := a.cfg.Service(id)
+	if !ok {
+		return fmt.Errorf("không tìm thấy service %q", id)
+	}
+	return a.mgr.Restart(s, listenersOfPorts(s.Ports), a.cfg.ResolveDir(a.root, serviceDir(s)))
+}
+
 func (a *App) GetServiceLog(id string) string {
 	return a.mgr.TailLog(id, 200)
 }
@@ -59,6 +79,13 @@ func (a *App) GetServiceLog(id string) string {
 // KillUnknown: user kill process lạ chiếm cổng (UI phải confirm trước).
 func (a *App) KillUnknown(port int, pid int) error {
 	return a.mgr.KillPID(pid)
+}
+
+// StopUnknownContainer: dừng container đang giữ một cổng lạ. Cổng do container
+// publish ra host thì pid lsof thấy là docker backend — kill pid đó là tắt cả
+// Docker Desktop, nên phải `docker stop` đúng container.
+func (a *App) StopUnknownContainer(name string) error {
+	return a.mgr.StopContainer(name)
 }
 
 // RepoDetails: chi tiết git repo của service (branch/worktree/dirty + branches + worktrees).
