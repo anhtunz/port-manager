@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"smatec/port-manager/internal/config"
 	"smatec/port-manager/internal/git"
@@ -24,13 +25,13 @@ func runCLI(args []string) {
 			fmt.Fprintln(os.Stderr, "lỗi load config:", err)
 			os.Exit(1)
 		}
-		res := scan.ScanAll(cfg, root, mgr.IsManaged)
+		res := scan.ScanAll(cfg, root, mgr)
 		if res.Error != "" {
 			fmt.Fprintln(os.Stderr, "lỗi quét:", res.Error)
 			os.Exit(1)
 		}
 		printScanResult(res)
-	case "-start", "-stop":
+	case "-start", "-stop", "-restart":
 		if len(args) < 2 {
 			fmt.Fprintf(os.Stderr, "thiếu id service: %s <id>\n", args[0])
 			os.Exit(2)
@@ -46,20 +47,28 @@ func runCLI(args []string) {
 			os.Exit(2)
 		}
 		dir := cfg.ResolveDir(root, serviceDir(s))
-		if args[0] == "-start" {
+		switch args[0] {
+		case "-start":
 			fmt.Printf("Đang bật %s (%s)...\n", s.Name, s.ID)
 			if err := mgr.Start(s, dir); err != nil {
 				fmt.Fprintln(os.Stderr, "LỖI:", err)
 				os.Exit(1)
 			}
 			fmt.Println("Đã bật.")
-		} else {
+		case "-stop":
 			fmt.Printf("Đang tắt %s (%s)...\n", s.Name, s.ID)
 			if err := mgr.Stop(s, listenersOfPorts(s.Ports), dir); err != nil {
 				fmt.Fprintln(os.Stderr, "LỖI:", err)
 				os.Exit(1)
 			}
 			fmt.Println("Đã tắt.")
+		case "-restart":
+			fmt.Printf("Đang restart %s (%s)...\n", s.Name, s.ID)
+			if err := mgr.Restart(s, listenersOfPorts(s.Ports), dir); err != nil {
+				fmt.Fprintln(os.Stderr, "LỖI:", err)
+				os.Exit(1)
+			}
+			fmt.Println("Đã restart.")
 		}
 	case "-branches":
 		if len(args) < 2 {
@@ -174,6 +183,14 @@ func printScanResult(res *scan.Result) {
 			fmt.Printf("%s%-40s %-12s %-10s", mark, s.Name, strings.Join(ports, " "), statusVN(s.Status))
 			if s.PID != 0 {
 				fmt.Printf(" pid=%-7d %s", s.PID, truncateStr(s.Command, 52))
+			} else if s.ManagedPID != 0 {
+				// App đang giữ process nhưng service chưa lên cổng (đang khởi
+				// động / kẹt) → vẫn biết pid để tắt được.
+				fmt.Printf(" pid=%-7d %s", s.ManagedPID, "(app đang giữ — chưa lên cổng)")
+			}
+			if s.StartedAt > 0 {
+				st := time.UnixMilli(s.StartedAt)
+				fmt.Printf("  ▶ %s · %s", st.Format("15:04:05"), humanDuration(time.Since(st)))
 			}
 			if s.Repo != nil {
 				b := s.Repo.Branch
@@ -188,7 +205,20 @@ func printScanResult(res *scan.Result) {
 	if len(res.Unknown) > 0 {
 		fmt.Println("\n== Cổng lạ (không nằm trong cấu hình) ==")
 		for _, u := range res.Unknown {
-			fmt.Printf("  %-6d pid=%-7d %s\n", u.Port, u.PID, truncateStr(u.Command, 72))
+			fmt.Printf("  %-6d pid=%-7d %s", u.Port, u.PID, truncateStr(u.Command, 52))
+			if u.Container != "" {
+				fmt.Printf("  🐳 %s", u.Container)
+				if u.Project != "" {
+					fmt.Printf(" · %s", u.Project)
+				}
+			} else if u.Cwd != "" {
+				fmt.Printf("  📁 %s", u.Cwd)
+			}
+			if u.StartedAt > 0 {
+				st := time.UnixMilli(u.StartedAt)
+				fmt.Printf("  ▶ %s · %s", st.Format("15:04:05"), humanDuration(time.Since(st)))
+			}
+			fmt.Println()
 		}
 	} else {
 		fmt.Println("\nKhông có cổng lạ.")
@@ -201,6 +231,10 @@ func statusVN(st string) string {
 		return "ĐANG CHẠY"
 	case "partial":
 		return "MỘT PHẦN"
+	case "starting":
+		return "ĐANG KHỞI ĐỘNG"
+	case "stuck":
+		return "KẸT"
 	default:
 		return "tắt"
 	}
@@ -211,6 +245,24 @@ func truncateStr(s string, n int) string {
 		return s
 	}
 	return s[:n-1] + "…"
+}
+
+// humanDuration định dạng khoảng thời gian đã trôi qua cho dễ đọc: 45s · 12m 30s
+// · 2h 15m · 3d 4h.
+func humanDuration(d time.Duration) string {
+	if d < 0 {
+		d = 0
+	}
+	switch {
+	case d < time.Minute:
+		return fmt.Sprintf("%ds", int(d.Seconds()))
+	case d < time.Hour:
+		return fmt.Sprintf("%dm %ds", int(d.Minutes()), int(d.Seconds())%60)
+	case d < 24*time.Hour:
+		return fmt.Sprintf("%dh %dm", int(d.Hours()), int(d.Minutes())%60)
+	default:
+		return fmt.Sprintf("%dd %dh", int(d.Hours())/24, int(d.Hours())%24)
+	}
 }
 
 // listenersOfPorts quét và lọc listener thuộc đúng các port khai của service.
@@ -275,7 +327,7 @@ func loadCore() (*config.Config, *proc.Manager, string, error) {
 		return nil, nil, "", err
 	}
 	root := cfg.ResolveRoot(cfgDir)
-	mgr, err := proc.NewManager(resolveLogDir())
+	mgr, err := proc.NewManager(resolveLogDir(), resolveStateDir())
 	if err != nil {
 		return nil, nil, "", err
 	}
@@ -292,6 +344,20 @@ func resolveLogDir() string {
 	}
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".port-manager", "logs")
+}
+
+// resolveStateDir: thư mục lưu state file (pid process group) của service do
+// app bật. Luôn ở HOME — không phụ thuộc cwd — để app GUI (cwd="/") và CLI
+// (cwd=repo) dùng chung một chỗ, nên CLI cũng tắt được service do app bật.
+func resolveStateDir() string {
+	if p := os.Getenv("PORT_MANAGER_STATE"); p != "" {
+		return p
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(home, ".port-manager", "state")
 }
 
 func dirWritable(dir string) bool {

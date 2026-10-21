@@ -61,6 +61,7 @@ h1 { font-size: 18px; font-weight: 700; }
 .btn.primary { background: var(--accent); }
 .btn.danger { background: var(--danger); }
 .btn.ghost { background: var(--card-edge); color: var(--text); }
+.btn.warn { background: var(--warn); color: #1f2937; }
 .btn:disabled { opacity: 0.45; cursor: default; }
 .btn.sm { padding: 4px 10px; font-size: 12px; }
 
@@ -85,7 +86,7 @@ h1 { font-size: 18px; font-weight: 700; }
 
 .row {
   display: grid;
-  grid-template-columns: 92px minmax(200px, 1.2fr) 130px minmax(180px, 1.6fr) auto;
+  grid-template-columns: 108px minmax(200px, 1.2fr) 130px minmax(180px, 1.6fr) auto;
   gap: 12px;
   align-items: center;
   padding: 9px 4px;
@@ -97,14 +98,17 @@ h1 { font-size: 18px; font-weight: 700; }
   display: inline-block;
   font-size: 11px;
   font-weight: 700;
-  padding: 3px 0;
-  width: 84px;
+  padding: 3px 8px;
+  min-width: 84px;
   text-align: center;
   border-radius: 99px;
+  white-space: nowrap;
 }
 .pill.ok { background: rgba(34, 197, 94, 0.16); color: var(--ok); }
 .pill.warn { background: rgba(245, 158, 11, 0.16); color: var(--warn); }
 .pill.off { background: rgba(100, 116, 139, 0.18); color: var(--muted); }
+.pill.info { background: rgba(59, 130, 246, 0.18); color: #93c5fd; }
+.pill.err { background: rgba(239, 68, 68, 0.18); color: var(--danger); }
 
 .svc-name { font-weight: 600; }
 .svc-sub { font-size: 11px; color: var(--muted); }
@@ -121,6 +125,17 @@ h1 { font-size: 18px; font-weight: 700; }
 
 .proc { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .proc b { color: var(--text); font-weight: 600; }
+
+/* Chip thời gian: ▶ lúc bắt đầu · đã chạy */
+.uptime {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+  white-space: nowrap;
+}
+.uptime .uptime-start { color: #93c5fd; }
+.uptime .uptime-el { color: var(--ok); font-weight: 600; }
 
 .actions { display: flex; gap: 6px; justify-content: flex-end; }
 
@@ -164,6 +179,50 @@ h1 { font-size: 18px; font-weight: 700; }
   overflow: auto;
   white-space: pre-wrap;
   color: #cbd5e1;
+}
+
+/* Log realtime */
+.log-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.log-state {
+  font-size: 11px;
+  color: var(--ok);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.log-body {
+  position: relative;
+  background: var(--bg);
+  border: 1px solid var(--card-edge);
+  border-radius: 10px;
+  max-height: 56vh;
+  overflow: auto;
+}
+.log-body pre {
+  background: none;
+  border: none;
+  border-radius: 0;
+  padding: 12px;
+  margin: 0;
+  max-height: none;
+  overflow: visible;
+  min-height: 120px;
+}
+.log-body.not-bottom::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 28px;
+  pointer-events: none;
+  background: linear-gradient(to bottom, rgba(2, 6, 23, 0), rgba(2, 6, 23, 0.9));
 }
 
 footer { margin-top: 8px; color: var(--muted); font-size: 12px; }
