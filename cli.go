@@ -220,7 +220,7 @@ func runCLI(args []string) {
 		// CLI không giữ khoá một-instance nên cài thẳng (bootout → bootstrap →
 		// kickstart). Nếu GUI đang mở, instance agent sẽ thoát mã 3 và launchd
 		// thử lại tới khi GUI thoát — báo trước cho người dùng.
-		if err := daemon.Install(daemon.InstallOptions{}); err != nil {
+		if err := daemon.Install(daemon.InstallOptions{PATH: proc.SmartPath()}); err != nil {
 			fmt.Fprintln(os.Stderr, "LỖI:", err)
 			os.Exit(1)
 		}

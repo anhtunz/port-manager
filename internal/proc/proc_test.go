@@ -338,14 +338,20 @@ func waitPort(port int, d time.Duration) bool {
 	return false
 }
 
-func TestShellPathNonEmpty(t *testing.T) {
-	dir := t.TempDir()
-	mgr, _ := NewManager(filepath.Join(dir, "logs"), filepath.Join(dir, "state"))
-	if mgr.ShellPath() == "" {
-		t.Fatal("ShellPath không được rỗng")
+func TestSmartPathNonEmpty(t *testing.T) {
+	if SmartPath() == "" {
+		t.Fatal("SmartPath không được rỗng")
 	}
 	if _, err := os.Stat("/bin/sh"); err != nil {
 		t.Skip("không phải môi trường darwin/unix")
+	}
+}
+
+func TestMergePathLists(t *testing.T) {
+	got := mergePathLists("/a:/b", "/b:/c:", "", "/d:/a")
+	want := []string{"/a", "/b", "/c", "/d"}
+	if strings.Join(got, ":") != strings.Join(want, ":") {
+		t.Fatalf("mergePathLists = %v, muốn %v", got, want)
 	}
 }
 

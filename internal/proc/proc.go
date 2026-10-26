@@ -85,9 +85,6 @@ type Manager struct {
 	// process cùng service, lần sau ghi đè m.procs + state file, process đầu
 	// thành mồ côi và sẽ báo crash giả khi chết.
 	spawnMu sync.Mutex
-
-	shellPathOnce sync.Once
-	shellPathVal  string
 }
 
 // procState: thông tin process group do app quản lý, ghi ra đĩa.
@@ -173,27 +170,90 @@ func (m *Manager) setSuppress(id string, on bool) {
 	delete(m.suppress, id)
 }
 
-// ShellPath lấy PATH từ login shell. App GUI launch từ Finder chỉ nhận PATH
-// tối thiểu (/usr/bin:/bin:...) — không thấy go/make/npm/docker nằm ở
-// /usr/local/bin, /opt/homebrew/bin, ~/go/bin... nên phải bơm PATH của shell.
-func (m *Manager) ShellPath() string {
-	m.shellPathOnce.Do(func() {
-		for _, sh := range []string{"/bin/zsh", "/bin/bash"} {
-			out, err := exec.Command(sh, "-lc", "echo $PATH").Output()
-			if err == nil {
-				if p := strings.TrimSpace(string(out)); p != "" {
-					m.shellPathVal = p
-					return
-				}
+// SmartPath: PATH tốt nhất để chạy lệnh service (make, go, npm, docker...),
+// ghép từ 3 nguồn theo thứ tự ưu tiên, đã khử trùng lặp. Dùng cho cả env()
+// khi spawn service lẫn PATH ghi vào plist LaunchAgent (xem daemon.Install).
+//
+// Vì sao cần: app GUI mở từ Finder hoặc chạy ngầm qua LaunchAgent chỉ nhận
+// PATH tối thiểu (/usr/bin:/bin:...) — không thấy go/npm/docker nằm ở
+// /usr/local/bin, /opt/homebrew... Bơm PATH của login shell (zsh -lc) cũng
+// chưa đủ: login shell chỉ đọc .zprofile, KHÔNG đọc .zshrc, nên node@20 của
+// brew (keg-only, `export PATH=.../node@20/bin` thường đặt trong .zshrc) vẫn
+// mất → sh báo "npm: command not found" dù terminal chạy bình thường. Vì vậy
+// PATH cuối = login shell + thư mục tool quen thuộc + PATH hiện tại.
+var smartPath = sync.OnceValue(buildSmartPath)
+
+func SmartPath() string { return smartPath() }
+
+func buildSmartPath() string {
+	// 1. PATH của login shell — tôn trọng cấu hình user (.zprofile, /etc/paths).
+	shell := ""
+	for _, sh := range []string{"/bin/zsh", "/bin/bash"} {
+		out, err := exec.Command(sh, "-lc", "echo $PATH").Output()
+		if err == nil {
+			if p := strings.TrimSpace(string(out)); p != "" {
+				shell = p
+				break
 			}
 		}
-		m.shellPathVal = os.Getenv("PATH")
-	})
-	return m.shellPathVal
+	}
+
+	// 2. Thư mục tool quen thuộc còn tồn tại trên máy — vá đúng chỗ login
+	// shell không thấy (node keg-only, nvm...).
+	extra := strings.Join(knownToolDirs(), string(os.PathListSeparator))
+
+	// 3. PATH hiện tại của tiến trình — đầy đủ khi app được mở từ terminal.
+	parts := mergePathLists(shell, extra, os.Getenv("PATH"))
+	return strings.Join(parts, string(os.PathListSeparator))
+}
+
+// knownToolDirs: thư mục chứa CLI phổ biến mà login shell (chỉ đọc .zprofile)
+// thường không thấy. Glob bắt mọi version: node@20/node@22 của brew, nvm cài
+// nhiều node... filepath.Glob chỉ trả về match có thật trên đĩa.
+func knownToolDirs() []string {
+	patterns := []string{
+		"/opt/homebrew/opt/node@*/bin", // node keg-only của brew (Apple Silicon)
+		"/usr/local/opt/node@*/bin",    // như trên, brew Intel
+		"/usr/local/go/bin",
+	}
+	if home, err := os.UserHomeDir(); err == nil && home != "" {
+		patterns = append(patterns,
+			filepath.Join(home, ".nvm/versions/node/*/bin"), // nvm
+			filepath.Join(home, ".volta/bin"),
+			filepath.Join(home, ".asdf/shims"),
+			filepath.Join(home, "go/bin"),
+			filepath.Join(home, ".cargo/bin"),
+			filepath.Join(home, ".local/bin"),
+			filepath.Join(home, "Library/pnpm"),
+		)
+	}
+	var dirs []string
+	for _, p := range patterns {
+		matches, _ := filepath.Glob(p)
+		dirs = append(dirs, matches...)
+	}
+	return dirs
+}
+
+// mergePathLists ghép nhiều chuỗi PATH theo thứ tự, bỏ entry rỗng và trùng
+// (giữ lần xuất hiện đầu — entry đứng trước thắng khi tra lệnh).
+func mergePathLists(lists ...string) []string {
+	var parts []string
+	seen := map[string]bool{}
+	for _, list := range lists {
+		for _, d := range filepath.SplitList(list) {
+			if d == "" || seen[d] {
+				continue
+			}
+			seen[d] = true
+			parts = append(parts, d)
+		}
+	}
+	return parts
 }
 
 func (m *Manager) env() []string {
-	return append(os.Environ(), "PATH="+m.ShellPath())
+	return append(os.Environ(), "PATH="+SmartPath())
 }
 
 func (m *Manager) IsManaged(id string) bool {

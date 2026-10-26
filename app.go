@@ -1053,7 +1053,7 @@ func (a *App) AgentStatus() api.AgentStatus {
 // nền, sau đó app tự thoát (mã 0) để launchd mở instance mới. Trả về trước
 // khi thoát để frontend kịp hiện thông điệp.
 func (a *App) AgentInstall() error {
-	if err := daemon.Install(daemon.InstallOptions{Handover: true}); err != nil {
+	if err := daemon.Install(daemon.InstallOptions{Handover: true, PATH: proc.SmartPath()}); err != nil {
 		return err
 	}
 	a.quitLater(1500 * time.Millisecond)

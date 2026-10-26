@@ -59,6 +59,9 @@ type InstallOptions struct {
 	Exe string
 	// PATH: chuỗi PATH ghi vào plist để service con (`make`, `go`, `npm`…)
 	// tìm được binary như khi app chạy từ terminal. Rỗng → PATH hiện tại.
+	// Caller nên truyền proc.SmartPath() — PATH hiện tại của app chạy ngầm
+	// qua LaunchAgent là PATH tối thiểu của launchd (/usr/bin:/bin:...),
+	// thiếu npm/go/... nằm ngoài đó.
 	PATH string
 	// runCmd: runner launchctl (test thay). nil → chạy thật.
 	runCmd func(name string, args ...string) (string, error)
