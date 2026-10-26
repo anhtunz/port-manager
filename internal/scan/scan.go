@@ -41,6 +41,26 @@ type ServiceView struct {
 	ManagedPID   int           `json:"managedPid,omitempty"`   // pid của process group do app quản lý (0 = app không quản lý / process đã chết)
 	ManagedSince int64         `json:"managedSince,omitempty"` // unix milli — lúc app bật service
 	Repo         *git.RepoView `json:"repo,omitempty"`         // nil nếu dir không thuộc git repo
+
+	// LastError: dòng lỗi cuối cùng trong logs/<id>.log của lần chạy hiện tại
+	// (sau marker "=== bật lúc" cuối). App điền sau khi quét qua internal/lastlog
+	// (đọc 256KB cuối + cache 10s) — user thấy ngay service vì sao không lên
+	// cổng mà không phải mở log.
+	LastError string `json:"lastError,omitempty"`
+
+	// AutoRestart: cờ auto_restart trong ports.yaml của service.
+	AutoRestart bool `json:"autoRestart,omitempty"`
+
+	// RepoDir: giá trị repo_dir trong ports.yaml (thư mục gốc git repo, tương
+	// đối workspace). App điền sau khi quét để form Sửa service điền sẵn đúng
+	// giá trị cũ — form gửi giá trị rỗng thì backend xoá key đó khỏi
+	// ports.yaml (setString rỗng = removeKey), nên không được để user đoán mò.
+	RepoDir string `json:"repoDir,omitempty"`
+
+	// HealthPath / HealthSkipPorts: health_path + health_skip_ports trong
+	// ports.yaml — form Sửa điền sẵn, cùng lý do với RepoDir.
+	HealthPath      string `json:"healthPath,omitempty"`
+	HealthSkipPorts []int  `json:"healthSkipPorts,omitempty"`
 }
 
 // ManagedInfo: trạng thái process do app quản lý cho một service.
@@ -259,6 +279,7 @@ func ScanAll(cfg *config.Config, root string, mgr ManagedProvider) *Result {
 				Ports:        []PortView{},
 				StartCmd:     s.Start,
 				IsCompose:    s.IsCompose(),
+				AutoRestart:  s.AutoRestart,
 				ManagedByApp: mi.Alive,
 				ManagedPID:   mi.PID,
 				ManagedSince: mi.Started,

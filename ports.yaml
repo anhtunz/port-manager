@@ -33,85 +33,107 @@ unknown_ignore_ports:
   - 6792              # utoopack nội bộ cạnh WM FE 6789
 
 groups:
+  # tier: thứ tự bật khi "Bật tất cả" / "Bật group toàn workspace":
+  # 0 = hạ tầng (docker) → 1 = Backend Go → 2 = Frontend. Thiếu tier = xếp sau.
   - name: Backend Go
+    tier: 1
     services:
       - id: auth-be
         name: auth-service BE (Go · Gin · gRPC)
         ports: [3000, 9090]
         dir: auth-service/backend
         start: make run
+        auto_restart: true
+        health_skip_ports: [9090]   # gRPC — không probe HTTP
       - id: wm-be
         name: warehouse-management BE
         ports: [3001, 9092]
         dir: warehouse-management
         repo_dir: warehouse-management/backend   # dir gốc chỉ chứa Makefile tiện ích — repo là backend/
         start: make run-be
+        auto_restart: true
+        health_skip_ports: [9092]   # gRPC
       - id: notification-be
         name: notification-service BE
         ports: [3004, 9091]
         dir: notification-service/backend
         start: make dev
+        auto_restart: true
+        health_skip_ports: [9091]   # gRPC
       - id: assistant-be
         name: assistant-service BE (chatbox AI)
         ports: [3005]           # gRPC 9093 dự phòng — phase 1 chưa bật, không khai
         dir: assistant-service/backend
         start: make run
+        auto_restart: true
       - id: telegram-emulator-be
         name: telegram-emulator (Bot API giả)
         ports: [3010]
         dir: telegram-emulator
         start: make backend
+        auto_restart: true
       - id: facility-be
         name: facility BE (fm-backend)
         ports: [6868]
         dir: facility
         repo_dir: facility/backend   # tương tự wm-be — repo là backend/
-        start: make run-be
+        start: make be
+        auto_restart: true
       - id: base-be
         name: base BE
         ports: [8090]
         dir: base/backend
         start: make dev
+        auto_restart: true
 
   - name: Frontend
+    tier: 2
     services:
       - id: auth-fe
         name: auth-frontend (React admin)
         ports: [3003]
         dir: auth-service/auth-frontend
         start: npm run dev
+        auto_restart: true
       - id: portal-fe
         name: portal-frontend
         ports: [8000]
         dir: auth-service/portal-frontend
         start: npm run dev
+        auto_restart: true
       - id: base-fe
         name: base FE
         ports: [8091]
         dir: base/frontend
         start: npm run dev
+        auto_restart: true
       - id: facility-fe
         name: facility FE
         ports: [6869]
         dir: facility/frontend
         start: npm run dev
+        auto_restart: true
       - id: wm-fe
         name: warehouse-management FE (umi max)
         ports: [6789]
         dir: warehouse-management/frontend
         start: npm run dev
+        auto_restart: true
       - id: assistant-fe
         name: assistant-service FE (console quản trị AI)
         ports: [5180]
         dir: assistant-service/frontend
         start: npm run dev
+        auto_restart: true
       - id: telegram-emulator-fe
         name: telegram-emulator web UI (Vite dev)
         ports: [3011]
         dir: telegram-emulator
         start: make frontend
+        auto_restart: true
 
   - name: Hạ tầng (docker)
+    tier: 0
     services:
       - id: infra-postgres
         name: PostgreSQL (docker-shared)

@@ -9,6 +9,23 @@
 <body>
   <header>
     <div class="brand">
+      <!-- Logo "lưới service" — vẽ giống hệt assets/appicon.png (scripts/genicons.go). -->
+      <svg class="brand-icon" width="22" height="22" viewBox="0 0 512 512" aria-hidden="true" focusable="false">
+        <defs>
+          <linearGradient id="pm-tile" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#22304a"/><stop offset="1" stop-color="#0f172a"/>
+          </linearGradient>
+          <linearGradient id="pm-blue" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#3b82f6"/><stop offset="1" stop-color="#22d3ee"/>
+          </linearGradient>
+        </defs>
+        <rect x="16" y="16" width="480" height="480" rx="116" fill="url(#pm-tile)" stroke="rgba(148,163,184,.35)" stroke-width="4"/>
+        <rect x="136" y="136" width="108" height="108" rx="26" fill="url(#pm-blue)"/>
+        <rect x="268" y="136" width="108" height="108" rx="26" fill="#334155"/>
+        <rect x="136" y="268" width="108" height="108" rx="26" fill="#334155"/>
+        <rect x="268" y="268" width="108" height="108" rx="26" fill="#334155"/>
+        <circle cx="252" cy="130" r="21" fill="#22c55e" stroke="#0f172a" stroke-width="9"/>
+      </svg>
       <h1>SMATEC Port Manager</h1>
       <span id="ver" class="badge"></span>
     </div>
@@ -17,23 +34,159 @@
       <button id="btn-refresh" class="btn ghost">Quét lại</button>
       <span id="scanned" class="muted"></span>
     </div>
+
+    <!-- Toolbar lọc + thao tác theo nhóm (F1.1, F1.2) — nằm trong header, ngoài #content
+         để render() không xoá mất bộ lọc sau mỗi vòng quét 3s.
+         6 nút toolbar đều có data-act để listener ủy quyền duy nhất trong app.js bắt. -->
+    <div id="toolbar" class="toolbar">
+      <input id="search" class="search-input" type="search" autocomplete="off"
+             placeholder="Tìm theo tên, id, cổng, group… (Cmd+K)" title="Tìm kiếm service hoặc số cổng (Cmd/Ctrl+K)" />
+      <select id="filter-state" class="filter-select" title="Lọc theo trạng thái">
+        <option value="all">Tất cả trạng thái</option>
+        <option value="running">Đang chạy</option>
+        <option value="starting">Đang khởi động</option>
+        <option value="stuck">Kẹt</option>
+        <option value="stopped">Tắt</option>
+      </select>
+      <label class="muted filter-dirty-label" title="Chỉ hiện service có thay đổi chưa commit">
+        <input type="checkbox" id="filter-dirty" /> Repo bẩn
+      </label>
+      <span class="toolbar-spacer"></span>
+      <button id="btn-start-all" class="btn primary" data-act="start-all" title="Bật toàn bộ workspace theo thứ tự hạ tầng → Backend → Frontend">Bật toàn bộ</button>
+      <button id="btn-stop-all" class="btn danger" data-act="stop-all" title="Tắt toàn bộ workspace theo thứ tự ngược">Tắt toàn bộ</button>
+      <button id="btn-health" class="btn ghost" data-act="health" title="Probe HTTP từng cổng đang mở">Sức khoẻ</button>
+      <button id="btn-mirror" class="btn ghost" data-act="mirror" title="Đối chiếu AGENTS.md mục 10.1 với ports.yaml">Đối chiếu port</button>
+      <button id="btn-add-service" class="btn ghost" data-act="add-service" title="Thêm service mới vào ports.yaml">+ Service</button>
+      <button id="btn-reload-config" class="btn ghost" data-act="reload-config" title="Nạp lại ports.yaml sau khi sửa tay">Nạp lại config</button>
+      <button id="btn-agent" class="btn ghost" data-act="agent" title="Cài/gỡ LaunchAgent để app tự mở khi đăng nhập và tự mở lại khi bị tắt">Chạy ngầm</button>
+    </div>
   </header>
 
   <div id="mockbar" class="banner warn hidden">
     Đang chạy ở chế độ <b>MOCK</b> (ngoài app Wails) — dữ liệu chỉ là mẫu để xem giao diện.
   </div>
   <div id="errbar" class="banner error hidden"></div>
+  <!-- Banner lý do thoát lần trước (chạy ngầm F3). Nằm NGOÀI #content và KHÁC #errbar
+       (#errbar bị hideError() xoá mỗi vòng quét). Chỉ hiện khi lần trước bị tắt đột ngột /
+       bị signal; người dùng tự đóng bằng nút Đã hiểu — không tự ẩn theo thời gian. -->
+  <div id="exit-banner" class="banner warn exit-banner hidden">
+    <div class="exit-banner-text"><b id="exit-banner-title"></b> <span id="exit-banner-detail"></span></div>
+    <button class="btn ghost sm" data-act="agent" title="Mở cài đặt chạy ngầm">Chạy ngầm…</button>
+    <button class="btn ghost sm" data-act="dismiss-exit" title="Ẩn thông báo này">Đã hiểu</button>
+  </div>
 
   <main id="content"></main>
+
+  <!-- Bảng đối chiếu mirror (F2.1) — nằm NGOÀI #content vì render() gán lại innerHTML
+       của #content mỗi vòng quét 3s sẽ xoá mất bảng. FE-2 điền nội dung trực tiếp vào đây. -->
+  <section id="mirror-panel" class="modal mirror-panel hidden">
+    <h3>Đối chiếu port — AGENTS.md mục 10.1 ↔ ports.yaml</h3>
+    <div id="mirror-note" class="warn-note hidden"></div>
+    <table class="mirror-table">
+      <thead>
+        <tr>
+          <th>Cổng</th>
+          <th>Service</th>
+          <th>Group</th>
+          <th>AGENTS.md</th>
+          <th>ports.yaml</th>
+          <th>Ghi chú</th>
+        </tr>
+      </thead>
+      <tbody id="mirror-body"></tbody>
+    </table>
+    <p class="muted mirror-note-text">Nguồn sự thật là <b>AGENTS.md mục 10</b> — <code>ports.yaml</code> chỉ là mirror.</p>
+    <div class="modal-actions">
+      <button id="mirror-refresh" class="btn ghost">Quét lại</button>
+      <button id="mirror-close" class="btn ghost">Đóng</button>
+    </div>
+  </section>
 
   <footer>
     Nguồn cấu hình cổng: <b>AGENTS.md mục 10</b> — <code>ports.yaml</code> chỉ là mirror.
     Dấu <span class="badge mini">app</span> = service do app này bật (có log, tắt được cả cây process).
     Chip <span class="branch-chip" style="cursor:default">⎇ branch</span> bấm được để xem chi tiết repo / chuyển nhánh; <span class="chip-wt" style="cursor:default">wt</span> = linked worktree; <span class="chip-dot" style="cursor:default">●N</span> = N thay đổi chưa commit.
+    Chip cổng màu xanh <span class="port open" style="cursor:default">3000</span> bấm được → mở <code>http://localhost:&lt;port&gt;</code> trên trình duyệt.
+    Chip cạnh cổng <span class="health health-ok" style="cursor:default">OK</span> = kết quả probe sức khoẻ HTTP.
+    Nút <b>Terminal</b> trên mỗi dòng service mở Terminal.app ngay tại thư mục của service;
+    nút <b>Ẩn</b> trên dòng cổng lạ ghi cổng vào danh sách ignore của <code>ports.yaml</code>.
   </footer>
 
-  <div id="overlay" class="overlay hidden"><div id="modal" class="modal"></div></div>
+  <!-- Overlay dùng chung với modal cũ (#modal). Hai panel mới là phần tử riêng trong
+       overlay, mặc định ẩn — app.js mở panel này thì ẩn panel kia (không có stack).
+       Nút đóng dùng id riêng #svc-close / #history-close (m-close đã bị trùng sẵn trong app.js). -->
+  <div id="overlay" class="overlay hidden">
+    <div id="modal" class="modal"></div>
 
+    <!-- Modal thêm/sửa service (F3.4) — FE-2 điền giá trị vào các ô qua id svc-* -->
+    <div id="svc-modal" class="modal hidden">
+      <h3 id="svc-title">Thêm service</h3>
+      <div id="svc-error" class="banner error hidden"></div>
+      <form id="svc-form" class="svc-form" autocomplete="off">
+        <label>Id <input id="svc-id" type="text" placeholder="vd: auth-be" /></label>
+        <label>Tên hiển thị <input id="svc-name" type="text" placeholder="vd: auth-service BE" /></label>
+        <label>Group <select id="svc-group"></select></label>
+        <label>Cổng (ngăn cách bằng dấu phẩy) <input id="svc-ports" type="text" placeholder="vd: 3000, 9090" /></label>
+        <label>Lệnh bật <input id="svc-start" type="text" placeholder="vd: make run" /></label>
+        <label>Thư mục (tương đối workspace) <input id="svc-dir" type="text" placeholder="vd: auth-service/backend" /></label>
+        <label>Repo dir <input id="svc-repo-dir" type="text" placeholder="để trống = dùng thư mục chính" /></label>
+        <label>Compose dir <input id="svc-compose-dir" type="text" placeholder="chỉ service docker" /></label>
+        <label>Compose file <input id="svc-compose-file" type="text" placeholder="vd: docker-compose.yml" /></label>
+        <label>Compose service <input id="svc-compose-service" type="text" placeholder="vd: postgres" /></label>
+        <label>Health path <input id="svc-health-path" type="text" placeholder="rỗng = /" /></label>
+        <label>Health skip ports <input id="svc-health-skip-ports" type="text" placeholder="vd: 9090, 9091" /></label>
+        <label class="check"><input id="svc-auto-restart" type="checkbox" /> Tự khởi động lại khi crash</label>
+      </form>
+      <div class="warn-note">⚠️ <code>ports.yaml</code> là mirror — cần cập nhật <b>AGENTS.md mục 10.1</b> trước khi chạy. App không tự sửa AGENTS.md.</div>
+      <div class="modal-actions">
+        <button id="svc-suggest-port" class="btn ghost sm" type="button" title="Gợi ý một cổng trống từ bảng quy hoạch">Gợi ý cổng trống</button>
+        <span class="toolbar-spacer"></span>
+        <button id="svc-close" class="btn ghost">Đóng</button>
+        <button id="svc-save" class="btn primary" type="button">Lưu</button>
+      </div>
+    </div>
+
+    <!-- Modal lịch sử chạy (F3.3) — FE-2 điền bảng sự kiện vào #history-body -->
+    <div id="history-modal" class="modal hidden">
+      <h3 id="history-title">Lịch sử chạy</h3>
+      <table class="history-table">
+        <thead>
+          <tr>
+            <th>Thời gian</th>
+            <th>Loại</th>
+            <th>Chi tiết</th>
+          </tr>
+        </thead>
+        <tbody id="history-body"></tbody>
+      </table>
+      <div class="modal-actions">
+        <button id="history-close" class="btn ghost">Đóng</button>
+      </div>
+    </div>
+
+    <!-- Modal chạy ngầm (F2/F5) — app.js điền trạng thái LaunchAgent vào #agent-status.
+         Các nút data-act đi qua listener ủy quyền chung; #agent-close là nút đóng riêng. -->
+    <div id="agent-modal" class="modal hidden">
+      <h3>Chạy ngầm (LaunchAgent)</h3>
+      <p class="muted agent-intro">
+        Cài LaunchAgent để Port Manager <b>tự mở khi đăng nhập</b> và <b>tự mở lại khi bị tắt đột ngột</b>
+        (crash, <code>kill -9</code>). Đóng cửa sổ bằng nút đỏ chỉ ẩn app — dùng menu <b>Chạy ngầm → Thoát hẳn</b> để tắt thật.
+      </p>
+      <div id="agent-error" class="banner error hidden"></div>
+      <div id="agent-status" class="agent-status"></div>
+      <div class="modal-actions">
+        <button id="agent-refresh" class="btn ghost sm" data-act="agent-refresh" type="button">Kiểm tra lại</button>
+        <span class="toolbar-spacer"></span>
+        <button id="agent-close" class="btn ghost" type="button">Đóng</button>
+        <button id="agent-uninstall" class="btn danger" data-act="agent-uninstall" type="button">Gỡ chạy ngầm</button>
+        <button id="agent-install" class="btn primary" data-act="agent-install" type="button">Cài &amp; chạy ngầm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- app.logic.js (F1.2, F4.3) chứa hàm thuần (lọc, tìm kiếm, localStorage) —
+       PHẢI nạp trước app.js để app.js lấy qua window.uiLogic -->
+  <script src="app.logic.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
