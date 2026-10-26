@@ -29,6 +29,7 @@ header {
 }
 
 .brand { display: flex; align-items: center; gap: 10px; }
+.brand-icon { display: block; flex: none; }
 h1 { font-size: 18px; font-weight: 700; }
 
 .badge {
@@ -123,6 +124,11 @@ h1 { font-size: 18px; font-weight: 700; }
 .port.open { background: rgba(34, 197, 94, 0.14); color: var(--ok); }
 .port.closed { background: rgba(100, 116, 139, 0.14); color: var(--muted); }
 
+/* Chip cổng bấm được → mở http://localhost:<port> trên trình duyệt */
+button.port { border: none; cursor: pointer; }
+button.port:hover { background: rgba(34, 197, 94, 0.28); text-decoration: underline; }
+button.port:active { background: rgba(34, 197, 94, 0.4); }
+
 .proc { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .proc b { color: var(--text); font-weight: 600; }
 
@@ -186,7 +192,16 @@ h1 { font-size: 18px; font-weight: 700; }
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-bottom: 6px;
+}
+.log-bar .log-filter { flex: 1 1 200px; min-width: 120px; padding: 5px 10px; font-size: 12px; }
+.log-bar .btn.active { background: var(--danger); color: #fff; }
+.log-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin-bottom: 8px;
+  min-height: 16px;
 }
 .log-state {
   font-size: 11px;
@@ -196,6 +211,8 @@ h1 { font-size: 18px; font-weight: 700; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.log-state.paused { color: var(--warn); }
+.log-count { font-size: 11px; color: var(--muted); white-space: nowrap; }
 .log-body {
   position: relative;
   background: var(--bg);
@@ -213,7 +230,14 @@ h1 { font-size: 18px; font-weight: 700; }
   max-height: none;
   overflow: visible;
   min-height: 120px;
+  -webkit-user-select: text;
+  user-select: text;
+  cursor: text;
 }
+.log-body pre::selection, .log-body pre *::selection { background: rgba(59, 130, 246, 0.45); color: #fff; }
+.log-body .log-error { color: #fca5a5; background: rgba(239, 68, 68, 0.12); }
+.log-body .log-warn { color: #fde68a; }
+.log-body .log-none { color: var(--muted); font-style: italic; }
 .log-body.not-bottom::after {
   content: "";
   position: absolute;
@@ -298,4 +322,262 @@ footer code { font-family: ui-monospace, Menlo, monospace; }
   border-radius: 8px;
   padding: 8px 10px;
   font-size: 12px;
+}
+
+/* ---------------------------------------------------------------------------
+   Đợt nâng cấp v0.6.0 — FE-1: khung giao diện cho F1.1–F1.5, F2.1, F2.2, F3.3,
+   F3.4, F4.1, F4.3. Chỉ thêm class mới, không đụng rule cũ.
+   --------------------------------------------------------------------------- */
+
+/* Toolbar trong header (F1.1, F1.2) — ngoài #content nên không bị render() xoá */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  flex-basis: 100%;
+  margin-top: 10px;
+}
+.toolbar-spacer { flex: 1; }
+
+.search-input {
+  flex: 0 1 240px;
+  min-width: 150px;
+  background: var(--bg);
+  border: 1px solid var(--card-edge);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 6px 10px;
+  font-size: 13px;
+  outline: none;
+}
+.search-input:focus { border-color: var(--accent); }
+.search-input::placeholder { color: var(--muted); }
+
+.filter-select {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--card-edge);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 13px;
+  outline: none;
+  cursor: pointer;
+}
+.filter-select:focus { border-color: var(--accent); }
+
+.filter-dirty-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.filter-dirty-label input { accent-color: var(--accent); }
+
+/* Đầu group (F1.1): .card-head bọc h2 + .group-actions do FE-2 render */
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.card-head h2 { margin-bottom: 0; }
+.group-actions { display: flex; gap: 6px; }
+.group-actions:empty { display: none; }
+/* Nút bật/tắt nhóm ở đầu group — FE-2 render <button class="btn group-start" data-group="..."> */
+.btn.group-start { background: var(--accent); }
+.btn.group-stop { background: var(--card-edge); color: var(--text); }
+
+/* Vùng nút phụ trên dòng service (F1.5 Terminal, F3.3 Lịch sử, F3.4 Sửa) —
+   đặt ở cột 2 (dưới .svc-sub), KHÔNG vào .actions để không tràn ngang ở 940px */
+.row-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 5px;
+}
+
+/* Dòng lỗi cuối (F1.3) — cột 2, dưới .svc-sub; ẩn nếu rỗng (FE-2 không render) */
+.last-error {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--danger);
+}
+
+/* Chip sức khoẻ HTTP (F2.2) — đặt cạnh chip cổng trong .ports.
+   Tên class theo hợp đồng: health-ok | health-http_error | health-no_response */
+.health {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 99px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  align-self: center;
+}
+.health.health-ok { background: rgba(34, 197, 94, 0.16); color: var(--ok); }
+.health.health-http_error { background: rgba(239, 68, 68, 0.18); color: var(--danger); }
+.health.health-no_response { background: rgba(245, 158, 11, 0.16); color: var(--warn); }
+
+/* Nút Ẩn trên dòng cổng lạ (F1.4) — dùng .btn.sm, chỉ đổi viền cho nhẹ nhàng */
+.btn.ignore-port { background: var(--card-edge); color: var(--muted); }
+.btn.ignore-port:hover { color: var(--text); }
+
+/* Bảng đối chiếu mirror (F2.1) — trong #mirror-panel ngoài #content */
+.mirror-panel h3 { font-size: 15px; margin-bottom: 10px; }
+.mirror-note-text { margin: 8px 0 12px; }
+.mirror-table,
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin: 8px 0;
+}
+.mirror-table th,
+.history-table th {
+  text-align: left;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--card-edge);
+  position: sticky;
+  top: 0;
+  background: var(--card);
+  white-space: nowrap;
+}
+.mirror-table td,
+.history-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(51, 65, 85, 0.45);
+  vertical-align: top;
+  word-break: break-word;
+}
+.mirror-table td.mono,
+.history-table td.mono {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11.5px;
+}
+/* Dòng lệch được tô nhẹ để nhìn ra ngay */
+.mirror-table tr.mismatch td { background: rgba(239, 68, 68, 0.08); }
+.mirror-table .yes { color: var(--ok); font-weight: 700; }
+.mirror-table .no { color: var(--danger); font-weight: 700; }
+.history-table .kind-start { color: var(--ok); font-weight: 600; }
+.history-table .kind-stop { color: var(--muted); font-weight: 600; }
+.history-table .kind-restart { color: #93c5fd; font-weight: 600; }
+.history-table .kind-crash { color: var(--danger); font-weight: 700; }
+.history-table .kind-stuck { color: var(--warn); font-weight: 700; }
+.history-table .kind-fail { color: var(--danger); font-weight: 700; }
+.history-table .kind-edit { color: #c4b5fd; font-weight: 600; }
+
+/* Modal thêm/sửa service (F3.4) */
+.svc-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 14px;
+  margin: 12px 0;
+}
+.svc-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.svc-form input[type="text"],
+.svc-form select {
+  background: var(--bg);
+  border: 1px solid var(--card-edge);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 6px 10px;
+  font-size: 13px;
+  outline: none;
+  text-transform: none;
+  letter-spacing: normal;
+}
+.svc-form input:focus,
+.svc-form select:focus { border-color: var(--accent); }
+.svc-form .full { grid-column: 1 / -1; }
+.svc-form label.check {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text);
+  text-transform: none;
+  letter-spacing: normal;
+}
+.svc-form label.check input { accent-color: var(--accent); }
+
+/* #modal rỗng (sau closeModal) không được hiện khung padding trống khi
+   overlay mở cho #svc-modal / #history-modal */
+.modal:empty { display: none; }
+
+/* Cửa sổ app hẹp nhất là 940px (main.go MinWidth) — co cột .row và toolbar
+   để không tràn ngang; các nút mới đã được đặt ở .row-tools (cột 2) */
+@media (max-width: 1000px) {
+  body { padding: 12px 14px 32px; }
+  .row {
+    grid-template-columns: 92px minmax(150px, 1.2fr) 110px minmax(130px, 1.5fr) auto;
+    gap: 8px;
+  }
+  .toolbar { gap: 6px; }
+  .search-input { flex: 1 1 150px; }
+  .btn { padding: 5px 10px; font-size: 12px; }
+  .svc-form { grid-template-columns: 1fr; }
+}
+
+/* --------------------------------------------------------------------------
+   Chạy ngầm (v0.7.0): banner lý do thoát lần trước + modal LaunchAgent
+   -------------------------------------------------------------------------- */
+.exit-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.exit-banner-text { flex: 1 1 320px; white-space: pre-wrap; }
+.exit-banner .btn.ghost { background: rgba(0, 0, 0, 0.25); color: #fde68a; }
+
+.agent-intro { margin-bottom: 10px; line-height: 1.5; }
+.agent-status { display: grid; gap: 6px; margin-bottom: 8px; }
+.agent-summary {
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-weight: 600;
+  border-left: 4px solid var(--card-edge);
+  background: rgba(255, 255, 255, 0.04);
+}
+.agent-summary.agent-ok   { border-left-color: var(--ok); }
+.agent-summary.agent-warn { border-left-color: var(--warn); }
+.agent-summary.agent-off  { border-left-color: var(--muted); color: var(--muted); }
+.agent-kv {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 10px;
+  font-size: 12px;
+  align-items: baseline;
+}
+.agent-k { color: var(--muted); }
+.agent-v {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12px;
+  word-break: break-all;
+  user-select: text;
 }

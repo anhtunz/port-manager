@@ -2,8 +2,10 @@ package config
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -29,13 +31,53 @@ type Service struct {
 	ComposeDir     string `yaml:"compose_dir"`
 	ComposeFile    string `yaml:"compose_file"`
 	ComposeService string `yaml:"compose_service"`
+
+	// AutoRestart: service này được supervisor tự bật lại khi process chết
+	// ngoài ý muốn (F3.1). Mặc định false — không tự khởi động lại.
+	AutoRestart bool `yaml:"auto_restart" json:"autoRestart"`
+
+	// HealthPath: path dùng để probe HTTP (F2.2). Rỗng → internal/health tự
+	// hiểu là "/". Nếu có, phải bắt đầu bằng "/" (Parse kiểm tra).
+	HealthPath string `yaml:"health_path" json:"healthPath,omitempty"`
+
+	// HealthSkipPorts: port không probe (vd cổng gRPC) để không báo
+	// http_error giả.
+	HealthSkipPorts []int `yaml:"health_skip_ports" json:"healthSkipPorts,omitempty"`
 }
 
 func (s Service) IsCompose() bool { return s.ComposeService != "" }
 
 type Group struct {
-	Name     string    `yaml:"name" json:"name"`
+	Name string `yaml:"name" json:"name"`
+
+	// Tier: thứ tự khởi động — 0 = hạ tầng, 1 = Backend Go, 2 = Frontend.
+	// KHÔNG bắt buộc: group thiếu tier → tier = -1 (xếp sau các group có tier,
+	// giữ thứ tự file trong nhóm đó). Xem GroupsInStartupOrder.
+	Tier int `yaml:"tier" json:"tier,omitempty"`
+
 	Services []Service `yaml:"services" json:"services"`
+}
+
+// UnmarshalYAML đọc group nhưng cho Tier mặc định -1 khi file không khai báo
+// `tier` — file ports.yaml cũ (chưa có tier) vẫn phải đọc được, không được
+// chặn app khởi động.
+func (g *Group) UnmarshalYAML(value *yaml.Node) error {
+	// Dùng con trỏ cho tier để phân biệt "thiếu key" với "tier: -1".
+	var raw struct {
+		Name     string    `yaml:"name"`
+		Tier     *int      `yaml:"tier"`
+		Services []Service `yaml:"services"`
+	}
+	if err := value.Decode(&raw); err != nil {
+		return err
+	}
+	g.Name = raw.Name
+	g.Services = raw.Services
+	g.Tier = -1
+	if raw.Tier != nil {
+		g.Tier = *raw.Tier
+	}
+	return nil
 }
 
 type Config struct {
@@ -88,6 +130,9 @@ func Parse(data []byte) (*Config, error) {
 			if len(s.Ports) == 0 {
 				return nil, fmt.Errorf("service %s thiếu ports", s.ID)
 			}
+			if s.HealthPath != "" && !strings.HasPrefix(s.HealthPath, "/") {
+				return nil, fmt.Errorf("service %s có health_path %q — phải bắt đầu bằng \"/\"", s.ID, s.HealthPath)
+			}
 			if s.IsCompose() {
 				if s.ComposeDir == "" || s.ComposeFile == "" {
 					return nil, fmt.Errorf("service compose %s thiếu compose_dir/compose_file", s.ID)
@@ -104,6 +149,28 @@ func Parse(data []byte) (*Config, error) {
 		}
 	}
 	return cfg, nil
+}
+
+// GroupsInStartupOrder trả group theo thứ tự khởi động: sort theo tier,
+// tie → thứ tự group trong file. Group không khai báo tier có tier = -1 →
+// xếp sau các group có tier, nhưng giữ thứ tự file trong nhóm đó.
+//
+// File cũ không có tier → mọi group tier -1 → thứ tự giữ nguyên như file.
+func (c *Config) GroupsInStartupOrder() []Group {
+	out := make([]Group, len(c.Groups))
+	copy(out, c.Groups)
+	sort.SliceStable(out, func(i, j int) bool {
+		return tierRank(out[i].Tier) < tierRank(out[j].Tier)
+	})
+	return out
+}
+
+// tierRank: tier -1 (không khai báo) → xếp CUỐI, sau mọi tier >= 0.
+func tierRank(tier int) int {
+	if tier < 0 {
+		return math.MaxInt
+	}
+	return tier
 }
 
 // ResolveRoot trả workspace_root tuyệt đối. Nếu đường dẫn mặc định không hợp lệ
